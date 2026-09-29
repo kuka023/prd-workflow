@@ -1,0 +1,177 @@
+# 提炼阶段 · 案例记录、规则提炼与回归
+
+> 本文件是 prd-workflow Skill 的阶段说明，由 `SKILL.md` 调度。路径约定：`<SKILL>` 指 Skill 目录；以 `core/`、`stages/`、`templates/`、`references/`、`scripts/` 开头的路径相对 Skill 目录；`00-context/`、`01-requirements/`、`02-contracts/`、`03-quality/`、`04-decisions/`、`inputs/`、`cases/` 相对项目需求库（当前工作目录）。
+
+适配规范版本：**1.3**。
+
+## 第一原则
+
+**Skill 里的每一条规则都应当能说出它来自哪几个案例、哪几个项目。** 只出现过一次的修改，多半是这份需求的特殊情况；只在一个项目出现的经验，可能是这个项目的特殊情况。把它们写进核心层，会让下一个项目被错误的规则约束。
+
+## 模式
+
+| 调用 | 行为 |
+|---|---|
+| `/prd-workflow capture <需求ID>` | 记录：比对初稿、修订稿与定稿，起草 `lessons.yaml` 与 `case.yaml` 指标，需求负责人确认 |
+| `/prd-workflow distill` | 提炼：汇总 → 分层分流 → 出提案 → 批准后修改 → 回归 |
+| `/prd-workflow distill --regress` | 只做回归：在盲测案例上运行当前版本并对比 |
+
+---
+
+## 记录（capture）
+
+每份需求精修完成后运行，替代需求负责人手工填写 `lessons.yaml`。
+
+### 前置条件
+
+- `cases/<ID>/case.yaml` 中 `commits.draft_v0` 与 `commits.final` 已填写；`commits.reviewed` 有则一并使用。
+- `draft_generated_in_fresh_session` 为 `true`。为 `false` 或未填写时，询问用户初稿是否在独立会话中由生成 Skill 产出、提交前是否做过人工修改；不满足 CN-70 的，只记录，不将该案例标为可用于提炼或回归的样本，并在 `case.yaml` 注明。
+
+### 第 1 步：比对
+
+对 `draft_v0 → reviewed → final` 分段取差异（`git diff`）。按编号对象（`BR-n`、`AC-n`、功能条目等）归并修改，一个对象上的连续修改算一处。纯格式、空白与编号重排不计。
+
+### 第 2 步：起草 lessons
+
+对每处修改起草一条 lesson（`drafted_by: ai`、`confirmed: false`）：
+
+| 字段 | 起草依据 |
+|---|---|
+| `what` | 修改摘要 |
+| `why` | 初稿哪里不对。推断不出时写「[待确认] 」加推测，不编造原因 |
+| `edit_type` | **决策类**：修改回答了开放问题、确定了口径或取舍、把「提案」改为有来源的结论。**非决策类**：补漏、纠正与素材不符的内容、调整结构与表达。二者难以区分时标「[待确认]」 |
+| `layer` | 非决策类：该问题换一个项目是否同样会出现 → 核心；只在同类产品中出现 → 领域包；依赖本项目的术语、角色或约定 → 项目；可由脚本判定 → lint；偶然因素 → 一次性。决策类：写「项目」或「ADR」 |
+
+### 第 3 步：起草指标
+
+填写 `case.yaml` 的 `generator` 段（rubric 4.1）：
+
+- **事实抽查**：从初稿随机抽取 10 条标注 `SRC-n` 或 `CTX` 的条目（不足 10 条时全取），逐条对照素材包或项目上下文，判断来源是否支撑内容。列出抽查编号与判定。
+- **素材遗漏**：逐条核对素材包中与本需求范围相关的要点，找出既未进入初稿正文、也未列为非本期范围或开放问题的项。
+- 非决策类修改条数取第 2 步结果；用时由需求负责人提供。
+
+`workflow` 段中能由差异得出的（审稿后非决策类修改条数、决策类修改条数、审稿拦截数）一并起草；用时由需求负责人提供。
+
+### 第 4 步：确认
+
+在对话中以表格列出全部 lesson 与指标，请需求负责人逐条确认或修改。**只需确认三件事：原因、修改类型、归属层。** 确认后写入 `lessons.yaml`（`confirmed: true`）与 `case.yaml`。决策类 lesson 同时核对其结论是否已回写到开放问题表、项目适配或 ADR；未回写的列出提醒。
+
+---
+
+## 提炼
+
+### 前置条件
+
+- 至少 3 个 `role: train`、`draft_generated_in_fresh_session: true` 的案例已归档，且其 lesson 均已确认。不足时告知用户当前数量，停止。
+- **不得读取 `role: blind` 案例的 `lessons.yaml`、定稿与审稿结果**。盲测案例只在回归步骤中使用其素材包。
+
+### 第 1 步：汇总
+
+读取全部训练案例的 `lessons.yaml`、`case.yaml`，以及 `inputs/<ID>/review-findings.yaml`。**只处理 `edit_type: 非决策类` 且 `confirmed: true` 的 lesson。** 对每条补全 `[distill]` 字段：
+
+- `severity`：按 CN-41 判定。
+- `auto_detectable`：能否由脚本确定性判定（给出判定方式）。
+- `seen_in`：其他案例中是否出现同类问题，格式「项目/需求ID」（依据 `why` 的含义判断，不只看字面）。
+
+结果写回各案例的 `lessons.yaml`。
+
+### 第 2 步：分层分流
+
+按 `core/cases-guide.md` 第 4 节与 CN-72 逐条决定去向：
+
+| 去向 | 条件 | 写入位置 |
+|---|---|---|
+| lint 检查项 | 可由脚本确定性判定。**凡能进 lint 的，优先进 lint** | 上游提案（Skill 的 `scripts/prd_lint.py`） |
+| 核心规则 | 在**至少两个不同项目**的案例中出现；不依赖领域或客户背景；能写出触发条件、正例、反例、停止条件 | 上游提案（Skill 的 `references/learned-rules-generate.md`、`references/learned-rules-review.md`） |
+| 候选核心规则 | 满足核心规则的其他条件，但只在一个项目中出现 | 上游提案，标为候选 |
+| 领域规则 | 在至少两份同类产品的需求中出现，只适用于该类产品 | 项目的 `domain-packs/<包名>/learned-rules.md`；Skill 自带的领域包走上游提案 |
+| 项目规则 | 只适用于本项目 | `00-context/learned-rules.md` |
+| 保留在案例 | 一次性偏好，或只出现一次 | — |
+
+同时检查现有规则：
+
+- 候选核心规则在第二个项目中再次出现的，提出升级为核心规则；
+- 某条已有规则在新案例中被人工反复推翻的，提出修改或删除；
+- 领域包内容（术语、指标、形态清单）被多个项目反复修改的，提出修订领域包。
+
+### 第 3 步：提案
+
+**先出提案，不直接修改。** 规则变更由需求负责人批准（CN-73）。写入 `cases/distill-<日期>.md`：
+
+```markdown
+# 规则提炼提案 <日期>
+
+- 依据案例：<项目/训练案例 ID 列表>；当前规范版本
+
+## 1. 拟新增的 lint 检查项
+| 拟代码 | 判定方式 | 严重度 | 来源案例 |
+
+## 2. 拟新增或升级的核心规则
+| 拟编号 | 目标 Skill | 触发条件 | 规则 | 正例 | 反例 | 停止条件 | 来源案例（须跨项目） |
+
+## 3. 拟新增的候选核心规则
+
+## 4. 拟新增的领域规则 / 领域包修订
+
+## 5. 拟新增的项目规则
+
+## 6. 拟修改或删除的现有规则
+
+## 7. 未采纳的经验及原因
+
+## 8. 版本影响
+是否需要提升规范版本（CN-50、CN-73）；受影响的模板、脚本、Skill。
+```
+
+在对话中给出摘要，请用户逐节确认。
+
+### 第 4 步：应用（批准后）
+
+**在项目中运行时**，Skill 目录只读（CN-72）：
+
+- 项目规则写入 `00-context/learned-rules.md`，编号 `PR-n`；项目自有领域包的规则写入该包的 `learned-rules.md`，编号 `DR-<包名>-n`。
+- 核心规则、候选核心规则、lint 检查项、constitution 修改，以及 Skill 自带领域包的修改，整理为**上游提案**，写入 `cases/upstream-proposals-<日期>.md`：每条附来源案例（「项目/需求ID」）、脱敏后的正例与反例。提示用户以 issue 或 pull request 提交到 Skill 上游仓库。提案中不得包含未脱敏的客户材料。
+
+**在 Skill 上游仓库中维护时**（维护者批准后）：
+
+- 核心规则写入 `references/learned-rules-generate.md` 或 `references/learned-rules-review.md`，编号 `LR-n`，填写来源案例与「加入版本」；候选规则写入同文件候选区，编号 `LR-C-n`。
+- lint 检查项在 `scripts/prd_lint.py` 中实现，在仓库的 `tests/test_prd_lint.py` 中补充命中与不误报的用例，同步更新 `stages/lint.md` 的检查项表。
+- 核心规则或 constitution 变化时提升 `version`，同步更新模板、`LINT_SPEC_VERSION`、各阶段说明的「适配规范版本」，并在 constitution 变更记录中说明。领域规则与项目规则不提升规范版本。
+- 被采纳的 lesson 将 `status` 更新为对应去向。
+- 应用完成后执行回归。
+
+---
+
+## 回归
+
+### 第 1 步：测量波动
+
+对每个盲测案例，**在两个互相独立的子代理中**分别以当前版本运行 生成阶段，输出分别写入 `cases/<ID>/regression/<日期>-run1.md` 与 `cases/<ID>/regression/<日期>-run2.md`，**不覆盖** `01-requirements/` 中的文件。子代理只获得该案例的素材包、项目适配与 Skill，不获得任何定稿或审稿结果。
+
+### 第 2 步：评估
+
+对每份输出：
+
+1. 运行 `prd_lint --file <输出> --as review --json`（将输出临时复制到对应模块目录下检查，检查后删除副本）。
+2. 按 rubric 4.1 做事实抽查与素材遗漏检查。
+3. 另起子代理，以审稿阶段的 `--no-edit` 与 `--score-only` 模式评估。
+
+记录：硬门禁结果、编造数、遗漏数、P0/P1 数量、质量维度评级、提案数、待补充按类别分布。
+
+### 第 3 步：对比
+
+与该案例上一次回归记录对比（记在 `case.yaml` 的 `regression` 段，只在同一规范版本内对比，CN-51）。
+
+- 两次运行之间的差异即为波动范围。**新旧版本的差异小于波动范围时，结论为「无显著变化」**，不得报告为改善。
+- 出现编造、新的 P0、硬门禁由通过变为不通过，视为退化，报告给用户并建议回退相应规则。
+
+结果追加到 `case.yaml`：
+
+```yaml
+regression:
+  - date: ""
+    spec_version: ""
+    runs: [{gates_passed: , fabricated: , omissions: , p0: , p1: , proposals: , todo_by_category: {} }]
+    noise: ""                   # 两次运行的差异
+    verdict: ""                 # 改善 | 无显著变化 | 退化
+```

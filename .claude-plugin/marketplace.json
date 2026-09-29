@@ -1,0 +1,12 @@
+{
+  "name": "prd-workflow",
+  "description": "AI 协作 PRD 工作流",
+  "owner": { "name": "Jiafan Hu", "url": "https://github.com/kuka023" },
+  "plugins": [
+    {
+      "name": "prd-workflow",
+      "source": "./",
+      "description": "AI 协作 PRD 工作流：初始化项目上下文、生成、独立审稿、检查、案例记录与规则提炼"
+    }
+  ]
+}

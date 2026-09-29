@@ -1,137 +1,156 @@
-# AI 协作 PRD 工作流
+# prd-workflow · AI 协作 PRD 工作流
 
-一套通用的 PRD 编写工作流：需求负责人提供项目上下文与需求素材，AI 按固定的方法生成 PRD 初稿、独立审稿，需求负责人只处理需要决策的部分；每次精修留下的记录用于持续改进 Skill。
+> An agent skill for writing PRDs with AI: initialize project context from existing documents, generate drafts from source materials, review them independently, run deterministic checks, and improve from refined cases. Every statement carries a source; nothing is fabricated. Documentation is in Chinese.
 
-- **规则**：[constitution.md](constitution.md)（规范版本 1.2）
-- **分层与资源边界**：[FRAMEWORK.md](FRAMEWORK.md)
-- **质量标准**：[rubric.md](rubric.md)
-- **需求边界与模板裁剪**：[01-requirements/_GUIDE.md](01-requirements/_GUIDE.md)
-- **给 AI agent 的入口**：[AGENTS.md](AGENTS.md)
+一个用于 AI 协作编写 PRD 的 Agent Skill。需求负责人提供项目上下文与需求素材，AI 按固定的方法生成 PRD 初稿、独立审稿、自动检查，把需要人决策的问题整理成清单；需求负责人的时间主要花在决策上，而不是补结构、改格式、纠正编造。
+
+**状态：0.1 预览版（规范 1.3）。** 方法、规则与检查脚本已完整，正在真实项目中试点验证；规则可能随试点结果调整。
 
 ---
 
-## 1. 设计思路
+## 它解决什么问题
 
-每份 PRD 都要回答同样的问题：为什么做、做什么不做什么、谁能做、规则与异常、怎样算做完。这部分方法是固定的。变化的是领域知识与项目事实。因此本库分为三层（CN-7）：
+让 AI 直接写 PRD，常见的问题是：文档看起来完整，但有些业务规则、权限、数字是模型补出来的；评审者因为文档完整而放松，开发把编造的内容当成事实实现。
 
-| 层 | 内容 | 谁维护 |
+本工作流的做法：
+
+- **每条内容标注来源**：素材（`SRC-n`）、项目上下文（`CTX`）、已决问题（`Q-n`），或明确标为「提案」待决策。没有依据的写成待补充，并给出建议口径。
+- **决策层与表达层分开**：结构、措辞、格式由 AI 直接写；问题定义、范围、规则、权限、门槛只能由 AI 提建议，由决策方确定。
+- **生成与审稿相互独立**：初稿与审稿分别在独立的子代理中进行，避免共享同样的盲区。
+- **能由脚本判定的由脚本判定**：来源、编号、覆盖率、门禁等由 `prd_lint.py` 检查，不依赖模型自觉。
+- **越用越准**：精修后记录「初稿哪里不对、为什么这样改」，区分决策类与非决策类修改，分层提炼规则，并在盲测案例上回归。
+
+## 三层结构
+
+| 层 | 内容 | 在哪里 |
 |---|---|---|
-| **核心** | 规则、模板、评分标准、Skill、检查脚本 | 规范版本升级，所有项目共用 |
-| **领域包** | 某类产品共用的术语、指标、红线、输入形态等候选清单 | 按产品类型启用，从同类项目中提炼 |
-| **项目适配** | 本项目的术语、角色、模块、契约、质量口径、验收方案 | 每个项目一份 |
+| **核心** | 方法、规则、模板、阶段说明、检查脚本 | 本 Skill |
+| **领域包** | 某类产品共用的术语、指标、红线、输入形态等候选清单 | 本 Skill 自带模板；具体领域包放在项目中 |
+| **项目适配** | 本项目的术语、角色、模块、契约、质量口径、验收方案 | 你的项目需求库 |
 
-再加上每份需求各自的**素材包**（会议纪要、Demo、客户材料）。
-
-**目标**：需求负责人的审阅时间主要花在决策上，而不是补结构、改格式、纠正编造。衡量方式见 rubric 第 4、5 节。
+项目需求库只存放项目自己的内容，不复制核心；更新 Skill 即更新核心。开发人员与 coding agent 读取项目中的 `AGENTS.md` 即可按需求实现，**无须安装本 Skill**。
 
 ---
 
-## 2. 目录结构
+## 安装
 
-```
-├── constitution.md        规则唯一真源（带版本号）            ─┐
-├── FRAMEWORK.md           分层与资源边界                       │
-├── rubric.md              硬门禁 + 质量维度 + 过程指标          │ 核心
-├── AGENTS.md / CLAUDE.md  AI agent 入口                        │
-├── .claude/skills/        prd-context-init / prd-generate /    │
-│                          prd-review-refine / prd-lint /       │
-│                          prd-distill                          │
-├── scripts/               lint、状态生成、单元测试、commit 钩子 ─┘
-│
-├── domain-packs/          领域包模板；具体领域包按需放置       ── 领域包
-│
-├── 00-context/            项目声明、素材登记、模块、术语、角色、─┐
-│                          项目规则                             │
-├── 02-contracts/          数据模型、接口、链路 I/O              │
-├── 03-quality/            指标口径、评测集、全局非功能需求       │ 项目适配
-│   └── acceptance/        验收方案（门槛、基线，带版本）        │
-├── 04-decisions/          跨需求决策记录（ADR）                ─┘
-│
-├── 01-requirements/       需求文件；共用模板与裁剪说明
-├── inputs/<需求ID>/       素材包、生成报告、审稿结果
-├── cases/<需求ID>/        精修案例：AI 初稿、修改原因、指标
-│
-├── status.md / open-questions.md / decisions.md   脚本生成的台账
-└── pilot-history/         试点历史材料（仅本地保留，不随核心发布）
+### Claude Code（推荐）
+
+```text
+/plugin marketplace add kuka023/prd-workflow
+/plugin install prd-workflow@prd-workflow
 ```
 
----
+安装后以 `/prd-workflow:prd-workflow` 调用，也可以直接用自然语言描述要做的事（如「用 prd-workflow 初始化需求库」）。更新：`/plugin marketplace update prd-workflow`。
 
-## 3. 开始一个新项目
-
-1. 复制本库的核心文件与项目适配骨架（清单见 FRAMEWORK.md 第 2 节）。
-2. 运行 `/prd-context-init`，提供项目已有文档（既有 PRD、用户旅程、系统说明、角色清单、数据字典、会议纪要等）。AI 登记素材、起草项目适配，并建议启用的领域包与候选需求划分。
-3. 按确认清单处理：模块划分、前缀等我方事项由需求负责人直接确认；术语口径、角色权限、红线由业务方确认。运行 `/prd-context-init --confirm` 回写。
-4. 按需求准备素材包，进入第 4 节的流程。
-
-项目适配的每个条目都标注来源（`PS-n`）；AI 无依据起草的条目标为提案，确认前不作为需求的依据（CN-9）。缺项不阻止生成，但对应内容会以待补充标记。
-
----
-
-## 4. 单份需求的流程
-
-在本目录中打开 Claude Code，Skill 会自动加载。
-
-| 步 | 做什么 | 谁做 | 命令 / 产出 |
-|---|---|---|---|
-| 1 | 准备素材包：复制 `inputs/_TEMPLATE/` 为 `inputs/<ID>/`，登记会议纪要、Demo、客户材料 | 需求负责人 | `inputs/<ID>/input.md` |
-| 2 | **在新会话中**生成初稿。素材不足或只有想法时，Skill 会以一次一问的方式先确认问题定义 | AI | `/prd-generate <ID>` → 需求文件 + 生成报告 |
-| 3 | 独立审稿与修订（**新开会话**） | AI | `/prd-review-refine <ID>` → 修订稿 + 审稿结果 |
-| 4 | 人工决策：处理开放问题、提案与待补充；与业务方确认 | 需求负责人 · 业务方 | 需求文件中的 `Q-n` 结论；台账见 `decisions.md` |
-| 5 | 含效果要求时，PO 在验收方案中确定门槛 | PO | `03-quality/acceptance/AP-nnn-*.md` |
-| 6 | 门禁检查后改状态 | 需求负责人 | `/prd-lint` → `status: review` → `frozen` |
-| 7 | 交付开发 | 开发 | 只接收 `frozen` 状态的需求 |
-
-**第 4、5 步是只有人能完成的部分。** AI 负责把文档写全、写规范，并把需要决策的问题列清楚；业务事实、范围取舍、权限、门槛，由决策方确定。
-
-**门槛与需求分开管理。** 需求只引用「验收方案 · 版本 · 门槛条目」，不写数值；功能开发不以门槛为前提，调优类工作须待验收方案冻结（CN-56、CN-57）。这样门槛调整不必改需求，需求冻结也不必等门槛。
-
-### 状态与门禁
-
-| 状态 | 进入条件 |
-|---|---|
-| `draft` | — |
-| `review` | `prd_lint --as review` 无错误；无未决提案；审稿无未关闭的 P0 / P1 |
-| `frozen` | `prd_lint --as frozen` 无错误；无待补充、待定值；权限矩阵无 `?`；人工门禁已勾选 |
-
-详见 constitution 第 9 节。
-
----
-
-## 5. 让 Skill 持续改进
-
-Skill 一开始达不到目标水平，靠精修案例逐步改进。操作步骤见 [cases/README.md](cases/README.md)。
-
-```
-每份需求：新会话生成初稿并原样提交 → 审稿 → 人工精修并提交
-        → /prd-distill capture <ID>：AI 比对差异，起草修改原因、类型与归属层 → 需求负责人确认
-
-每 3–5 个案例：/prd-distill 提出规则变更 → 需求负责人批准 → 在盲测案例上回归
-```
-
-| 修改类型 | 去向 |
-|---|---|
-| 决策类（回答问题、确定口径） | 回写到开放问题结论、项目适配或 ADR，不进 Skill |
-| 非决策类（补漏、纠错、结构与表达） | 能由脚本判定的进 lint；跨项目出现的进核心规则；只在一个项目出现的先作为候选；同类产品共有的进领域包；本项目特有的进项目规则 |
-
-改进是否有效，以盲测案例的回归结果判断，且差异须超出同一版本重复运行的波动范围（CN-73）。
-
----
-
-## 6. 首次使用
+### 作为个人 Skill（适用于 Claude Code 及其他支持 Agent Skills 标准的工具）
 
 ```bash
-# 安装 commit-msg 钩子（需求到代码的追溯依赖此约定）
-ln -sf ../../scripts/commit-msg .git/hooks/commit-msg
-
-# 检查全库（含验收方案）
-python3 scripts/prd_lint.py
-
-# 运行检查脚本的单元测试
-cd scripts && python3 -m unittest test_prd_lint
-
-# 更新状态、开放问题与决策台账
-python3 scripts/generate_status.py
+git clone https://github.com/kuka023/prd-workflow.git
+cp -R prd-workflow/skills/prd-workflow ~/.claude/skills/
 ```
 
-脚本只依赖 Python 3 标准库。
+安装后以 `/prd-workflow` 调用。其他工具请将 `skills/prd-workflow/` 放到该工具读取 Skill 的目录。不支持子代理的环境，生成与审稿须手动在新会话中进行。
+
+**依赖**：Python 3（仅标准库）；建议在 Git 仓库中使用。
+
+---
+
+## 使用
+
+### 1. 初始化项目
+
+在准备存放需求库的目录中：
+
+```text
+/prd-workflow init
+```
+
+提供项目已有的文档（既有 PRD、用户旅程、系统说明、角色清单、数据字典、会议纪要等）。Skill 会创建需求库骨架，登记素材，起草术语、角色与权限、模块、核心实体等项目上下文，建议需求如何划分，并输出**按决策方分组的确认清单**：模块划分等我方可定的事项给出草拟结论，术语口径、权限、红线交业务方确认。确认后运行 `/prd-workflow init --confirm` 回写。
+
+### 2. 写一份需求
+
+```text
+/prd-workflow new ABC-001
+```
+
+依次完成：准备素材包 → 在独立子代理中生成初稿 → 在另一个独立子代理中审稿与修订 → 自动检查 → 汇报。汇报把**需要你决策的事项放在最前**，附建议口径，并说明距离提交评审还差什么。
+
+### 3. 决策、精修与定稿
+
+处理开放问题与提案，与业务方确认；含效果要求的需求，由 PO 在验收方案中确定门槛（需求只引用「方案 · 版本 · 门槛条目」，不写数值）。然后检查能否进入下一状态：
+
+```text
+/prd-workflow lint --file 01-requirements/abc/ABC-001-xxx.md --as review
+```
+
+### 4. 记录与改进
+
+```text
+/prd-workflow capture ABC-001   # 精修完成后：AI 比对初稿与定稿，起草修改原因、类型与归属层，你来确认
+/prd-workflow distill           # 每积累 3–5 个案例：提出规则变更，批准后在盲测案例上回归
+/prd-workflow status            # 需求状态、按决策方汇总的未决问题、待定门槛
+```
+
+### 命令一览
+
+| 命令 | 作用 |
+|---|---|
+| `init` / `init --confirm` / `init --update` | 初始化需求库与项目上下文 / 回写确认 / 增量更新 |
+| `new <需求ID>` | 单份需求全流程 |
+| `generate <需求ID>` / `review <需求ID>` | 单独生成 / 单独审稿 |
+| `lint` | 确定性检查 |
+| `status` | 状态与决策台账 |
+| `capture <需求ID>` / `distill` | 记录案例 / 提炼规则与回归 |
+
+---
+
+## 项目需求库的结构
+
+```
+├── AGENTS.md / CLAUDE.md   面向开发与 coding agent 的说明
+├── status.md               需求状态（生成）
+├── decisions.md            按决策方汇总的未决事项（生成）
+├── 00-context/             项目声明、素材登记、模块、术语、角色与权限、项目规则
+├── 01-requirements/        需求文件
+├── 02-contracts/           实体、字段、接口
+├── 03-quality/             指标口径、评测集、非功能需求；acceptance/ 下为带版本的验收方案
+├── 04-decisions/           跨需求决策记录
+├── inputs/                 需求素材包（原件放 raw/，默认不提交）
+└── cases/                  精修案例
+```
+
+## 本仓库的结构
+
+```
+├── .claude-plugin/          插件与插件市场清单
+├── skills/prd-workflow/
+│   ├── SKILL.md             入口与全流程编排
+│   ├── core/                规则（constitution）、评分标准、分层说明、划分指南、案例说明
+│   ├── stages/              各阶段说明：init / generate / review / lint / distill
+│   ├── references/          审稿清单、已提炼的核心规则
+│   ├── templates/           需求、素材包、验收方案、ADR、案例模板；project/ 为项目骨架
+│   ├── domain-packs/        领域包模板
+│   └── scripts/             prd_lint.py、generate_status.py、commit-msg 钩子
+└── tests/                   回归测试
+```
+
+规则全文：[skills/prd-workflow/core/constitution.md](skills/prd-workflow/core/constitution.md)。
+
+---
+
+## 参与改进
+
+核心规则只在本仓库中修改。在你的项目中运行 `/prd-workflow distill` 时，可能成为核心规则或检查项的经验会整理为上游提案（`cases/upstream-proposals-<日期>.md`），欢迎以 issue 或 pull request 提交。**提交前请去除客户材料与项目敏感信息。**
+
+核心规则的准入条件：在至少两个不同项目的案例中出现，不依赖特定领域或客户背景，能写出触发条件、正例、反例与停止条件；规则变化须在盲测案例上回归，且改善超出同一版本重复运行的波动范围。
+
+修改脚本后运行测试：
+
+```bash
+python3 -m unittest discover -s tests
+```
+
+## 许可
+
+[MIT](LICENSE)
