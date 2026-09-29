@@ -1,0 +1,20 @@
+# 人工精修的修改原因。
+# 「改了什么」由 Git 记录，这里只记录「为什么改」。
+# 推荐由 prd-distill 的「记录」模式比对初稿与定稿后起草，需求负责人逐条确认或修改（confirmed: true）。
+# 标注 [distill] 的字段由 prd-distill 在「提炼」模式中补充。
+
+lessons:
+  - id: L-1
+    target: ""                  # 被修改的编号或位置，如 BR-3、D-1、12.3
+    what: ""                    # 修改摘要（记录模式起草）
+    why: ""                     # 为什么改：初稿哪里不对，正确的做法是什么
+    edit_type: 非决策类         # 决策类（回答开放问题、确定口径与取舍）| 非决策类（补漏、纠正编造、结构与表达）（CN-71）
+    layer: ""                   # 非决策类的归属：核心 | 领域包 | 项目 | lint | 一次性（CN-72）；决策类填「项目」或「ADR」
+    drafted_by: ai              # ai（记录模式起草）| human
+    confirmed: false            # 需求负责人是否已确认本条
+    commit: ""                  # 包含该修改的提交 SHA（可选）
+
+    severity: ""                # [distill] P0 | P1 | P2 | P3
+    auto_detectable: null       # [distill] 能否由 prd_lint 确定性检查
+    seen_in: []                 # [distill] 在哪些其他案例中出现过同类问题，格式「项目/需求ID」
+    status: 未处理              # [distill] 未处理 | 已纳入核心规则 | 候选核心规则 | 已纳入领域包 | 已纳入项目规则 | 已纳入 lint | 已纳入项目适配 | 已纳入 ADR | 保留在案例

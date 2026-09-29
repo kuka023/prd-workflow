@@ -1,0 +1,41 @@
+#!/bin/sh
+# Git commit-msg hook —— 强制 commit message 带需求 ID。
+#
+# 安装:
+#   ln -sf ../../scripts/commit-msg .git/hooks/commit-msg
+#   chmod +x scripts/commit-msg
+#
+# 追溯链（git log --grep="ABC-001"）完全依赖这条纪律。
+
+msg_file="$1"
+msg=$(head -n1 "$msg_file")
+
+# 允许的前缀：需求 ID、DOC（纯文档整理）、CHORE（脚本生成物）、Merge/Revert
+# 需求 ID 前缀以 00-context/modules.md 为准，此处只校验格式
+if echo "$msg" | grep -Eq '^([A-Z]{2,6}-[0-9]{3}|DOC|CHORE):' ; then
+    exit 0
+fi
+
+if echo "$msg" | grep -Eq '^(Merge|Revert) ' ; then
+    exit 0
+fi
+
+cat >&2 <<'EOF'
+
+✗ commit message 必须以需求 ID 或允许的前缀开头。
+
+  格式:  <前缀>: <说明>
+
+  示例:
+    ABC-001: 增加审批单金额校验
+    ABC-002: 通知超时后的重试处理
+    DOC: 补充术语表
+    CHORE: 更新 status.md
+
+  允许的前缀: <需求ID>（前缀见 00-context/modules.md）/ DOC / CHORE
+
+  为什么强制: 需求到代码的追溯链依赖 git log --grep=<ID>。
+             不带 ID 的提交会让这条需求在 status.md 中永远显示"未开始"。
+
+EOF
+exit 1
