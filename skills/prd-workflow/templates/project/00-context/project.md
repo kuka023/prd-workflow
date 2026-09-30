@@ -1,7 +1,7 @@
 ---
 title: 项目适配声明
 project: 待定
-framework_version: "1.3"        # 所依据的规范版本（core/constitution.md 的 version）
+framework_version: "1.4"        # 所依据的规范版本（core/constitution.md 的 version）
 domain_packs: []                # 启用的领域包，如 [<包名>]，见 domain-packs/
 verification_levels: []         # 在核心验收层级（界面、接口、数据、评测）之外新增的层级
 owner: 待定
@@ -35,4 +35,3 @@ updated: 2026-09-29
 
 | # | 问题 | 类别 | 建议口径 | 负责人 | 需在何时前答 | 阻塞什么 | 结论 |
 |---|---|---|---|---|---|---|---|
-

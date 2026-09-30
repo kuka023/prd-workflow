@@ -3,6 +3,7 @@
 __pycache__/
 *.pyc
 .venv/
+.work/
 
 # 素材原件（可能含客户材料，默认不提交；input.md 中只保留脱敏摘录）
 inputs/*/raw/

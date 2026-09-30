@@ -1,14 +1,15 @@
 ---
 name: prd-workflow
-description: AI 协作 PRD 工作流。从项目已有文档初始化项目上下文，再按需求从素材生成 PRD 初稿、独立审稿、确定性检查，输出待决策清单；精修后记录案例并提炼规则，持续改进。每条内容标注来源，不编造。用于：初始化需求库、写 PRD、根据会议纪要或素材写需求、审稿、检查能否提交评审或定稿、查看需求状态与待决事项、记录精修案例、提炼规则。命令：/prd-workflow init | new <需求ID> | generate | review | lint | status | capture | distill。
+description: AI 协作 PRD 工作流。从项目已有文档初始化项目上下文，再按需求从素材生成 PRD 初稿、独立审稿、确定性检查，输出待决策清单；精修后记录案例并提炼规则，持续改进。每条内容标注来源，不编造。用于：初始化需求库、写 PRD、根据会议纪要或素材写需求、审稿、检查能否提交评审或定稿、查看需求状态与待决事项、记录精修案例、提炼规则。命令：/prd-workflow init | new 需求ID | generate | review | lint | status | capture | distill。
 license: MIT
-compatibility: 需要 Python 3（仅标准库）；建议在 Git 仓库中使用。独立生成与审稿依赖子代理（Claude Code 支持）；不支持子代理的环境须手动开启新会话。
 allowed-tools: Bash(python3 ${CLAUDE_SKILL_DIR}/scripts/*)
 ---
 
 # prd-workflow
 
 一套 AI 协作编写 PRD 的工作流：方法与纪律固定，领域与项目事实通过适配层提供。AI 负责把文档写全、写规范，并把需要人决策的问题列清楚；业务事实、范围取舍、权限与门槛由决策方确定。
+
+运行环境需要 Python 3（仅标准库），建议在 Git 仓库中使用。独立生成与审稿依赖子代理；不支持子代理的环境须手动开启新会话。
 
 ## 路径约定
 

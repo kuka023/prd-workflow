@@ -1,6 +1,6 @@
 ---
 title: 需求边界与模板裁剪
-template_version: "1.3"
+template_version: "1.4"
 updated: 2026-09-29
 ---
 

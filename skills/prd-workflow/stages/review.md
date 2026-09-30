@@ -2,7 +2,7 @@
 
 > 本文件是 prd-workflow Skill 的阶段说明，由 `SKILL.md` 调度。路径约定：`<SKILL>` 指 Skill 目录；以 `core/`、`stages/`、`templates/`、`references/`、`scripts/` 开头的路径相对 Skill 目录；`00-context/`、`01-requirements/`、`02-contracts/`、`03-quality/`、`04-decisions/`、`inputs/`、`cases/` 相对项目需求库（当前工作目录）。
 
-适配规范版本：**1.3**。开始前核对 `core/constitution.md` 的 `version`，不一致时先告知用户。
+适配规范版本：**1.4**。开始前核对 `core/constitution.md` 的 `version`，不一致时先告知用户。
 
 ## 第一原则
 
@@ -30,7 +30,7 @@
 1. `core/constitution.md`、`core/rubric.md`，以及需求所用模板中的「写作说明」。
 2. `references/review-checklist.md` 与 `references/learned-rules-review.md`（候选区不生效，仅供参考）。
 3. `00-context/project.md`；其中启用的每个领域包的 `README.md` 与 `learned-rules.md`。
-4. `00-context/`（含 `learned-rules.md`）、`02-contracts/`；含效果验收章节的加读 `03-quality/`，以及需求引用的验收方案。
+4. `00-context/`（含 `learned-rules.md`）、`02-contracts/`、`04-decisions/` 中影响本需求的 ADR；含效果验收章节的加读 `03-quality/`，以及需求引用的验收方案。
 5. 需求文件本身、`core/guide.md`，以及 `depends_on`、`blocks`、`business_requirements` 中的相关需求。按 spec_kind 判断本文责任边界，不按旧 type 字段决定是否审查效果。
 6. **暂不读取** `inputs/<需求ID>/input.md`，先完成第 2 步冷读。
 
@@ -64,6 +64,8 @@ lint 报告的问题分两类处理：
 | 数字无来源，或来源不含该数字 | **P0 编造** |
 | 来源为 `提案` | 不是错误；在报告中列出，提醒须在 review 前决策 |
 
+同时检查业务可读性（CN-27）：正文中的 `SRC-n` 是否带有准确的业务可读名称并可跳转到来源卡片；卡片能否打开或明确定位原文，是否区分材料性质、实际支撑与不支撑的边界。名称、摘录或边界超出素材时，仍按来源不实处理，不以“方便阅读”为由补写。
+
 ## 第 3.5 步：素材遗漏检查
 
 逐条阅读素材包中的素材摘录，找出与本需求范围相关、但**既未进入正文，也未列为非本期范围或开放问题**的要点。
@@ -79,6 +81,8 @@ lint 报告的问题分两类处理：
 ## 第 4 步：逐项审查
 
 按 `references/review-checklist.md` 的 14 类逐项审查，每发现一个问题记一条。清单之外发现的问题同样记录，类别写「其他」。
+
+闭环全景须使用 Mermaid `flowchart`。审稿时核对图中的主路径、分支、失败处置和回边是否与环节表、第 8 章及异常章节一致；只有线性箭头文本、图表语义不一致或在图中混入技术实现时，按实际影响记录问题。
 
 业务 PRD 与能力规格均检查确定性行为；涉及模型效果时检查评测协议、效果目标，以及门槛是否只以「方案 ID · 版本 · TH-n」引用、引用的方案是否覆盖本需求（CN-57）。拆分后重点核对最终业务验收归属、端到端集成与局部指标的关系。lint 检查关联 ID 和表格结构，审稿核对目标条目是否存在、责任是否有效、指标是否真正覆盖业务目标。
 

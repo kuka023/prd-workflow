@@ -1,7 +1,7 @@
 ---
 title: 领域包名称
 status: candidate               # candidate：候选，尚未经两个以上项目验证 | stable：已在两个以上同类项目中验证
-framework_version: "1.3"
+framework_version: "1.4"
 updated: 2026-09-29
 ---
 

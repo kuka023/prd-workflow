@@ -199,6 +199,23 @@ def mask_lines(lines: list[str]) -> list[str]:
     return out
 
 
+SOURCE_ID = re.compile(r"(?:SRC|PS)-\d+")
+SOURCE_VALUE = re.compile(r"(?:SRC|PS|Q)-\d+|CTX|提案")
+
+
+def source_values(value: str) -> list[str]:
+    """把来源单元格拆为来源取值。出现在 SRC-n / PS-n 之后、且不是来源取值的词视为位置说明（如 `SRC-1 §2.1、§8`），不计为取值。"""
+    v = re.sub(r"[（(][^）)]*[）)]", "", value).strip().strip("`")
+    out, seen_id = [], False
+    for word in re.split(r"[、,，;；/\s]+", v):
+        if not word:
+            continue
+        if SOURCE_VALUE.fullmatch(word) or not seen_id:
+            out.append(word)
+            seen_id = seen_id or bool(SOURCE_ID.fullmatch(word))
+    return out
+
+
 def clean_cell(cell: str) -> str:
     return cell.strip().strip("`").replace("**", "").strip()
 
@@ -316,5 +333,7 @@ def context_rows(path: Path):
             others = [clean_cell(c) for i, c in enumerate(cells) if i != si]
             src = clean_cell(cells[si]) if si < len(cells) else ""
             if not any(others) or (not src and any("[待补充" in c or "待补充/" in c for c in cells)):
+                continue
+            if any("已停用" in c or "已删除" in c for c in cells):
                 continue
             yield line, (others[0] if others else ""), src

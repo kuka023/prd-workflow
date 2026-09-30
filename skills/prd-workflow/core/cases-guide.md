@@ -49,7 +49,7 @@ cases/<需求ID>/
 |---|---|---|---|
 | 1 | 以 `templates/input.md` 为模板创建 `inputs/<ID>/input.md`，填写素材包 | `input.md` | `<ID>: 素材包` |
 | 2 | 以 `templates/case.yaml`、`templates/lessons.yaml` 为模板创建 `cases/<ID>/`，填写 `case.yaml` 的基本信息 | `case.yaml` | — |
-| 3 | 运行 `/prd-workflow new <ID>`：在独立子代理中生成初稿并复制为 `cases/<ID>/draft-v0.md`，**不做任何人工修改先提交**；再在另一个独立子代理中审稿。不支持子代理的环境，分别在新会话中运行 `generate` 与 `review` | 初稿、生成报告、审稿结果、修订稿 | `<ID>: AI 初稿（生成阶段，规范 1.3）`、`<ID>: 审稿修订` |
+| 3 | 运行 `/prd-workflow new <ID>`：在独立子代理中生成初稿并复制为 `cases/<ID>/draft-v0.md`，**不做任何人工修改先提交**；再在另一个独立子代理中审稿。不支持子代理的环境，分别在新会话中运行 `generate` 与 `review` | 初稿、生成报告、审稿结果、修订稿 | `<ID>: AI 初稿（生成阶段，规范 1.4）`、`<ID>: 审稿修订` |
 | 4 | （由第 3 步完成） | — | — |
 | 5 | 人工精修并提交定稿 | 定稿 | `<ID>: 精修——<修改原因概要>` |
 | 6 | 运行 `/prd-workflow capture <ID>`：比对初稿、修订稿与定稿，起草 `lessons.yaml` 与 `case.yaml` 指标；需求负责人逐条确认 | `lessons.yaml`、`case.yaml` 指标 | `<ID>: 案例归档` |

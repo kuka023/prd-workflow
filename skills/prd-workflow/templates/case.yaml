@@ -4,7 +4,7 @@ id: XXXX-000
 project: ""                     # 项目名称；判断规则能否进入核心层时使用（CN-72）
 role: train                     # train（参与规则提炼）| blind（盲测，不参与提炼）
 sample_type: ""                 # 样本类型，见 core/cases-guide.md
-spec_version: "1.3"             # 所依据的规范版本（core/constitution.md）
+spec_version: "1.4"             # 所依据的规范版本（core/constitution.md）
 domain_packs: []                # 生成时启用的领域包
 
 commits:

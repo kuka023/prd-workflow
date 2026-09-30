@@ -1,6 +1,6 @@
 ---
 title: PRD 质量评分标准
-version: "1.3"                  # 与 core/constitution.md 的规范版本一致
+version: "1.4"                  # 与 core/constitution.md 的规范版本一致
 updated: 2026-09-29
 ---
 

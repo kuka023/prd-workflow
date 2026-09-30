@@ -1,6 +1,6 @@
 {
   "name": "prd-workflow",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "AI 协作 PRD 工作流：从项目文档初始化上下文，按需求生成 PRD 初稿、独立审稿、确定性检查，输出待决策清单；精修后记录案例、提炼规则。每条内容标注来源，不编造。",
   "author": { "name": "Jiafan Hu", "url": "https://github.com/kuka023" },
   "homepage": "https://github.com/kuka023/prd-workflow",

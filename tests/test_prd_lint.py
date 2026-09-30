@@ -5,6 +5,7 @@
 """
 
 import atexit
+import json
 import os
 import re
 import shutil
@@ -156,6 +157,103 @@ class VerificationLevelTests(unittest.TestCase):
         self.assertEqual(self.run_level(lint, "链路段"), [])
 
 
+class FlowDiagramTests(unittest.TestCase):
+    def check(self, lines, rank=1):
+        lint = Linter("review" if rank else None)
+        lint._check_flow_diagram("x.md", lines, 1, rank)
+        return [(f.code, f.level) for f in lint.findings]
+
+    def test_mermaid_flowchart_passes(self):
+        self.assertEqual(self.check([
+            "### 2.1 闭环全景",
+            "```mermaid",
+            "flowchart LR",
+            "    A[开始] --> B[完成]",
+            "```",
+            "### 2.2 本期范围",
+        ]), [])
+
+    def test_linear_text_flow_blocks_review(self):
+        lines = [
+            "### 2.1 闭环全景",
+            "```text",
+            "开始 → 完成",
+            "```",
+            "### 2.2 本期范围",
+        ]
+        self.assertEqual(self.check(lines), [("FL01", "error")])
+        self.assertEqual(self.check(lines, rank=0), [("FL01", "warn")])
+
+    def test_other_mermaid_diagram_does_not_satisfy_section(self):
+        self.assertEqual(self.check([
+            "```mermaid",
+            "flowchart LR",
+            "    A --> B",
+            "```",
+            "### 2.1 闭环全景",
+            "开始 → 完成",
+            "### 2.2 本期范围",
+        ]), [("FL01", "error")])
+
+
+class SourcePresentationTests(unittest.TestCase):
+    def check(self, text, rank=1):
+        lines = text.strip().splitlines()
+        lint = Linter("review" if rank else None)
+        lint._check_source_presentation("x.md", lines, 1, parse_tables(mask_lines(lines), 1), rank)
+        return [(f.code, f.level) for f in lint.findings]
+
+    def test_business_readable_source_and_card_pass(self):
+        self.assertEqual(self.check("""
+## 1. 背景
+结论。（来源：SRC-1 · [用户访谈](#src-1)）
+## 15. 附录
+### 15.1 依据素材
+| # | 业务可读名称 | 类型 | 文件 / 位置 | 说明 |
+|---|---|---|---|---|
+| SRC-1 | [用户访谈](#src-1) | 访谈 | [原文](inputs/raw.md) | 问题证据 |
+### 15.2 来源卡片
+<a id="src-1"></a>
+#### SRC-1 ·《用户访谈》
+- **原文位置**：原文。
+- **材料性质**：单方陈述。
+- **关键摘录**：摘录。
+- **本需求用法**：支撑 P-1。
+- **不直接支撑**：权限。
+"""), [])
+
+    def test_bare_source_and_missing_card_block_review(self):
+        findings = self.check("""
+## 1. 背景
+结论。（来源：SRC-1）
+## 15. 附录
+### 15.1 依据素材
+| # | 类型 | 文件 / 位置 | 说明 |
+|---|---|---|---|
+| SRC-1 | 访谈 | raw.md | 问题证据 |
+""")
+        self.assertEqual([code for code, _ in findings].count("SR08"), 2)
+        self.assertIn(("SR09", "error"), findings)
+
+    def test_oral_confirmation_may_merge_evidence_and_usage(self):
+        self.assertEqual(self.check("""
+## 1. 背景
+结论。（来源：SRC-1 · [负责人确认](#src-1)）
+## 15. 附录
+### 15.1 依据素材
+| # | 业务可读名称 | 类型 | 文件 / 位置 | 说明 |
+|---|---|---|---|---|
+| SRC-1 | [负责人确认](#src-1) | 口头确认 | 当前会话 | 范围确认 |
+### 15.2 来源卡片
+<a id="src-1"></a>
+#### SRC-1 · 负责人确认
+- **原文位置**：当前会话。
+- **材料性质**：单方确认。
+- **确认内容**：确认本期范围，并作为 S-1 的来源。
+- **不直接支撑**：权限与门槛。
+"""), [])
+
+
 @unittest.skipIf(MODULE_PREFIX, "项目已登记模块前缀，不使用通用需求 ID 形态")
 class ReservedPrefixTests(unittest.TestCase):
     def test_quality_and_decision_ids_are_not_requirement_ids(self):
@@ -289,6 +387,16 @@ class ContextSourceTests(unittest.TestCase):
             with self.subTest(src=src):
                 self.assertEqual(self.check(src), [])
 
+    def test_source_locators_are_not_values(self):
+        from prdlib import source_values
+        self.assertEqual(source_values("PS-8 §2.1、PS-7 §6.1"), ["PS-8", "PS-7"])
+        self.assertEqual(source_values("SRC-1 B1"), ["SRC-1"])
+        self.assertEqual(source_values("SRC-1（结论）、提案（复议条件）"), ["SRC-1", "提案"])
+        self.assertEqual(source_values("§0"), ["§0"])
+        self.assertEqual(source_values("PS-1 U4、B10"), ["PS-1"])
+        self.assertEqual(source_values("§0、SRC-2"), ["§0", "SRC-2"])
+        self.assertEqual(self.check("PS-1 §0、Q-1"), [])
+
     def test_invalid_or_unregistered_sources(self):
         self.assertEqual(self.check(""), [("CX01", "warn")])
         self.assertEqual(self.check("CTX"), [("CX01", "warn")])
@@ -321,6 +429,10 @@ class PackageTests(unittest.TestCase):
         self.assertEqual(fm["template_version"], spec)
         for stage in (SKILL / "stages").glob("*.md"):
             self.assertIn(f"适配规范版本：**{spec}**", stage.read_text(encoding="utf-8"), stage.name)
+
+        manifest = json.loads((REPO / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))
+        changelog = (REPO / "CHANGELOG.md").read_text(encoding="utf-8")
+        self.assertIn(f"## {manifest['version']} · 规范 {spec}", changelog)
 
     def test_skill_frontmatter_follows_agent_skills_spec(self):
         fm = split_frontmatter((SKILL / "SKILL.md").read_text(encoding="utf-8"))[0]

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""prd_lint —— 需求库的确定性检查（适配规范版本 1.3）。
+"""prd_lint —— 需求库的确定性检查（适配规范版本 1.4）。
 
 凡是能由脚本判定的纪律，由本脚本判定，不依赖模型自觉（constitution CN-55）。
 在项目需求库目录（含 00-context/project.md）中运行；脚本位于 prd-workflow Skill 的 scripts/ 下。
@@ -31,11 +31,11 @@ from pathlib import Path
 
 from prdlib import (
     GUIDANCE_START, ITEM_PATTERN, MODULE_PREFIX, context_files, context_rows, load_context_registry, OBJ_FULL, OBJ_PATTERN, PLAN_DIR, REQ_DIR, REQ_ID, REQ_ID_PATTERN,
-    ROOT, SKILL_ROOT, TODO_CATEGORIES, TODO_PATTERN, PENDING_VALUE_PATTERN, Table, clean_cell,
+    ROOT, SKILL_ROOT, TODO_CATEGORIES, source_values, TODO_PATTERN, PENDING_VALUE_PATTERN, Table, clean_cell,
     headings, mask_lines, parse_tables, project_config, rel, spec_version, split_frontmatter,
 )
 
-LINT_SPEC_VERSION = "1.3"
+LINT_SPEC_VERSION = "1.4"
 STATUS_RANK = {"draft": 0, "review": 1, "frozen": 2}
 STATUSES = ["draft", "review", "frozen", "deprecated"]
 CORE_VERIFY_LEVELS = {"界面", "接口", "数据", "评测"}   # 项目可在 project.md 中新增（CN-8）
@@ -191,12 +191,14 @@ class Linter:
         self._check_acceptance_ownership(r, fm, tables, rank)
 
         self._check_chapters(r, hs, rank)
+        self._check_flow_diagram(r, body_raw, body_start, rank)
         self._check_empty_chapters(r, body, body_start, hs, rank)
         self._check_guidance(r, body_raw, body_start, rank)
         defs, deleted = self._collect_definitions(r, body, body_start, tables, hs, fm.get("id", ""))
         self._check_references(r, body, body_start, defs, fm.get("id", ""), all_reqs, rank)
         self._check_todos(r, body, body_start, tables, rank, stat)
         self._check_sources(r, body, body_start, tables, hs, defs, fm.get("id", ""), rank, stat)
+        self._check_source_presentation(r, body_raw, body_start, tables, rank)
         self._check_questions(r, tables, rank)
         self._check_permission_matrix(r, tables, rank)
         self._check_input_consistency(r, fm.get("id", ""), defs)
@@ -291,6 +293,29 @@ class Linter:
         for kw in REQUIRED_CHAPTERS:
             if not any(kw in text for _, text in h2):
                 self.add(self.gate(rank), "ST01", r, 1, f"缺少必填章节：{kw}")
+
+    def _check_flow_diagram(self, r, body_raw, start, rank):
+        """2.1 闭环全景必须用 Mermaid flowchart，语义一致性留给审稿。"""
+        section_start = None
+        section_end = len(body_raw)
+        for i, line in enumerate(body_raw):
+            m = re.match(r"^(#{2,3})\s+(.*)$", line)
+            if not m:
+                continue
+            level, title = len(m.group(1)), m.group(2).strip()
+            if section_start is None and level == 3 and re.search(r"(?:^|\s)2\.1\s+闭环全景", title):
+                section_start = i
+                continue
+            if section_start is not None and level <= 3:
+                section_end = i
+                break
+        if section_start is None:
+            return
+        section = "\n".join(body_raw[section_start + 1:section_end])
+        has_flowchart = bool(re.search(r"```mermaid\s*\n\s*(?:flowchart|graph)\s+(?:TB|TD|BT|RL|LR)\b", section, re.I))
+        if not has_flowchart:
+            self.add(self.gate(rank), "FL01", r, start + section_start,
+                     "2.1 闭环全景须使用 Mermaid flowchart；不得以一行箭头文本代替")
 
     def _check_empty_chapters(self, r, body, start, hs, rank):
         h2 = [line for line, level, _ in hs if level == 2]
@@ -432,11 +457,11 @@ class Linter:
                     q_conclusions[q] = clean_cell(cells[ci])
 
         def validate(value: str, key: str, line: int):
-            v = re.sub(r"[（(][^）)]*[）)]", "", clean_cell(value)).strip()
-            if not v:
+            toks = source_values(clean_cell(value))
+            if not toks:
                 self.add(self.gate(rank), "SR01", r, line, f"{key} 未标注来源（CN-20）")
                 return
-            for tok in [x for x in re.split(r"[、,，;；/\s]+", v) if x]:
+            for tok in toks:
                 if tok == "提案":
                     stat["proposals"] += 1
                     if rank >= 1:
@@ -523,6 +548,62 @@ class Linter:
                 stat["proposals"] += n
                 level = "error" if rank >= 1 else "warn"
                 self.add(level, "SR07", r, ln, "「提案」未使用规定写法，应写作行内「（来源：提案）」或写入来源列；review 及以上状态不得存在未决提案（CN-21、CN-22）")
+
+    def _check_source_presentation(self, r, body_raw, start, tables, rank):
+        """SRC 同时保留机器编号与业务可读入口，并在附录提供证据边界（CN-27）。"""
+        appendix = next((i for i, line in enumerate(body_raw)
+                         if re.match(r"^##\s+(?:\d+\.)?\s*附录\s*$", line.strip())), len(body_raw))
+        used = set()
+        for i, line in enumerate(body_raw[:appendix]):
+            ids = set(re.findall(r"SRC-\d+", line))
+            used |= ids
+            if not ids:
+                continue
+            remainder = line
+            for sid in ids:
+                readable = re.compile(re.escape(sid) + r"\s*·\s*\[[^\]\n]+\]\(#" + sid.lower() + r"\)")
+                remainder = readable.sub("", remainder)
+            bare = sorted(set(re.findall(r"SRC-\d+", remainder)))
+            if bare:
+                self.add(self.gate(rank), "SR08", r, start + i,
+                         f"来源须保留编号并提供业务可读名称与卡片链接：{'、'.join(bare)}（CN-27）")
+        if not used:
+            return
+
+        overview = next((t for t in tables if "依据素材" in " ".join(t.heading_path)), None)
+        required = ("#", "业务可读名称", "类型", "文件 / 位置", "说明")
+        overview_valid = overview is not None and all(overview.col(name) is not None for name in required)
+        if not overview_valid:
+            self.add(self.gate(rank), "SR08", r, start + appendix,
+                     "附录须包含来源总览：#、业务可读名称、类型、文件 / 位置、说明（CN-27）")
+            rows = {}
+        else:
+            rows = {clean_cell(cells[0]): (line, cells) for line, cells in overview.rows if cells}
+
+        full = "\n".join(body_raw[appendix:])
+        for sid in sorted(used, key=lambda x: int(x.split("-")[1])):
+            row = rows.get(sid)
+            if row:
+                line, cells = row
+                ni, li = overview.col("业务可读名称"), overview.col("文件 / 位置")
+                name = cells[ni] if ni is not None and ni < len(cells) else ""
+                location = clean_cell(cells[li]) if li is not None and li < len(cells) else ""
+                if not re.search(r"\[[^\]]+\]\(#" + sid.lower() + r"\)", name) or not location:
+                    self.add(self.gate(rank), "SR08", r, line,
+                             f"{sid} 的来源总览须填写业务可读名称、卡片链接和原文位置（CN-27）")
+            elif overview_valid:
+                self.add(self.gate(rank), "SR08", r, start + appendix,
+                         f"附录来源总览缺少正文引用的 {sid}（CN-27）")
+
+            card = re.search(r'<a\s+id=["\']' + sid.lower() + r'["\']\s*></a>(.*?)(?=<a\s+id=["\']src-\d+["\']\s*></a>|\Z)',
+                             full, re.S | re.I)
+            fields = ("原文位置", "材料性质", "不直接支撑")
+            key_evidence = card and any(f"**{name}**" in card.group(1)
+                                        for name in ("关键摘录", "关键原文", "确认内容"))
+            usage = card and ("**本需求用法**" in card.group(1) or "**确认内容**" in card.group(1))
+            if not card or not key_evidence or not usage or any(f"**{field}**" not in card.group(1) for field in fields):
+                self.add(self.gate(rank), "SR09", r, start + appendix,
+                         f"{sid} 缺少完整来源卡片（原文位置、材料性质、关键内容、本需求用法或确认内容、不直接支撑，CN-27）")
 
     # 开放问题
     def _check_questions(self, r, tables, rank):
@@ -783,7 +864,7 @@ def check_plans(lint: Linter, reqs: dict[str, dict]):
                         lint.add(lint.gate(rank), "AP02", r, line, f"{k} 的评测集未在 03-quality/eval-sets.md 登记：{eid}")
                 if rank >= 2 and status == "frozen" and any(PENDING_VALUE_PATTERN.search(cells[i]) for i in range(len(cells))):
                     lint.add("error", "AP03", r, line, f"已冻结的验收方案不得存在 [待定] / [待测]：{k}（CN-57）")
-                toks = [x for x in re.split(r"[、,，;；/\s]+", re.sub(r"[（(][^）)]*[）)]", "", vals["来源"])) if x]
+                toks = source_values(vals["来源"])
                 if not toks:
                     lint.add(lint.gate(rank), "AP03", r, line, f"{k} 未标注来源（CN-20）")
                 for tok in toks:
@@ -804,7 +885,7 @@ def check_context(lint: Linter):
     for path in context_files():
         r = rel(path)
         for line, key, src in context_rows(path):
-            toks = [x for x in re.split(r"[、,，;；/\s]+", re.sub(r"[（(][^）)]*[）)]", "", src)) if x]
+            toks = source_values(src)
             if not toks:
                 lint.add("warn", "CX01", r, line, f"项目适配条目「{key}」未标注来源（CN-9）")
             for tok in toks:

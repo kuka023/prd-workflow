@@ -2,7 +2,7 @@
 
 > 本文件是 prd-workflow Skill 的阶段说明，由 `SKILL.md` 调度。路径约定：`<SKILL>` 指 Skill 目录；以 `core/`、`stages/`、`templates/`、`references/`、`scripts/` 开头的路径相对 Skill 目录；`00-context/`、`01-requirements/`、`02-contracts/`、`03-quality/`、`04-decisions/`、`inputs/`、`cases/` 相对项目需求库（当前工作目录）。
 
-适配规范版本：**1.3**。
+适配规范版本：**1.4**。
 
 ## 第一原则
 
@@ -120,7 +120,7 @@
 ## 7. 未采纳的经验及原因
 
 ## 8. 版本影响
-是否需要提升规范版本（CN-50、CN-73）；受影响的模板、脚本、Skill。
+是否需要提升规范版本与 Skill 发布版本（CN-50、CN-73、CN-74）；受影响的模板、脚本、Skill；目标 Git tag、迁移说明与回滚目标。
 ```
 
 在对话中给出摘要，请用户逐节确认。
@@ -136,7 +136,7 @@
 
 - 核心规则写入 `references/learned-rules-generate.md` 或 `references/learned-rules-review.md`，编号 `LR-n`，填写来源案例与「加入版本」；候选规则写入同文件候选区，编号 `LR-C-n`。
 - lint 检查项在 `scripts/prd_lint.py` 中实现，在仓库的 `tests/test_prd_lint.py` 中补充命中与不误报的用例，同步更新 `stages/lint.md` 的检查项表。
-- 核心规则或 constitution 变化时提升 `version`，同步更新模板、`LINT_SPEC_VERSION`、各阶段说明的「适配规范版本」，并在 constitution 变更记录中说明。领域规则与项目规则不提升规范版本。
+- 核心规则或 constitution 变化时提升规范版本，同步更新模板、`LINT_SPEC_VERSION`、各阶段说明的「适配规范版本」，并在 constitution 变更记录中说明。每次批准并准备对外使用的核心迭代还须提升 `.claude-plugin/plugin.json` 的 Skill 发布版本，在仓库 `CHANGELOG.md` 记录规范版本映射、迁移与回滚目标，并以 `v<发布版本>` 创建不可变 Git tag（CN-74）。领域规则与项目规则不提升规范版本。
 - 被采纳的 lesson 将 `status` 更新为对应去向。
 - 应用完成后执行回归。
 
