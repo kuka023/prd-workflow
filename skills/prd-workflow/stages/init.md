@@ -2,7 +2,7 @@
 
 > 本文件是 prd-workflow Skill 的阶段说明，由 `SKILL.md` 调度。路径约定：`<SKILL>` 指 Skill 目录；以 `core/`、`stages/`、`templates/`、`references/`、`scripts/` 开头的路径相对 Skill 目录；`00-context/`、`01-requirements/`、`02-contracts/`、`03-quality/`、`04-decisions/`、`inputs/`、`cases/` 相对项目需求库（当前工作目录）。
 
-适配规范版本：**1.4**。开始前核对 `core/constitution.md` 的 `version`，不一致时先告知用户。
+适配规范版本：**1.5**。开始前核对 `core/constitution.md` 的 `version`，不一致时先告知用户。
 
 ## 第一原则
 

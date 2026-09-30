@@ -1,6 +1,6 @@
 ---
 title: 框架分层与资源边界
-framework_version: "1.4"
+framework_version: "1.5"
 updated: 2026-09-29
 ---
 

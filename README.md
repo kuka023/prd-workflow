@@ -4,7 +4,7 @@
 
 一个用于 AI 协作编写 PRD 的 Agent Skill。需求负责人提供项目上下文与需求素材，AI 按固定的方法生成 PRD 初稿、独立审稿、自动检查，把需要人决策的问题整理成清单；需求负责人的时间主要花在决策上，而不是补结构、改格式、纠正编造。
 
-**状态：0.2.0 预览版（规范 1.4）。** 方法、规则与检查脚本已完整，正在真实项目中试点验证；规则可能随试点结果调整。
+**状态：0.3.0 预览版（规范 1.5）。** 方法、规则与检查脚本已完整，正在真实项目中试点验证；规则可能随试点结果调整。
 
 ---
 
@@ -19,6 +19,7 @@
 - **生成与审稿相互独立**：初稿与审稿分别在独立的子代理中进行，避免共享同样的盲区。
 - **能由脚本判定的由脚本判定**：来源、编号、覆盖率、门禁等由 `prd_lint.py` 检查，不依赖模型自觉。
 - **越用越准**：精修后记录「初稿哪里不对、为什么这样改」，区分决策类与非决策类修改，分层提炼规则，并在盲测案例上回归。
+- **按能力特征选章**：统一 15 章主目录，配置、输入形态、元数据、记忆、工具执行、效果、预算等条件模块按需展开。生成报告记录「适用 / 不适用 / 待确认」及依据；缺少材料不会被自动判断为不适用。选章目录见 [模块适用性规则](skills/prd-workflow/references/module-selection.md)。
 
 ## 三层结构
 
@@ -155,7 +156,7 @@ python3 -m unittest discover -s tests
 
 - Skill 发布版本使用 SemVer，写在 `.claude-plugin/plugin.json`；规范版本写在 `core/constitution.md`。两者映射、迁移影响和回滚目标记录在 [CHANGELOG.md](CHANGELOG.md)。
 - 每次对外发布创建不可变 tag `v<Skill 发布版本>` 并生成同名 GitHub Release；不移动或覆盖已经发布的 tag。
-- 需要固定或回滚时，从对应 tag 安装。例如 `git clone --branch v0.2.0 --depth 1 https://github.com/kuka023/prd-workflow.git`。仓库维护者撤销已合并变更时使用 `git revert` 并发布新版本，不改写 `main` 历史。
+- 需要固定或回滚时，从对应 tag 安装。例如 `git clone --branch v0.3.0 --depth 1 https://github.com/kuka023/prd-workflow.git`。仓库维护者撤销已合并变更时使用 `git revert` 并发布新版本，不改写 `main` 历史。
 - 项目通过 `framework_version` 和需求的 `template_version` 固定所依据的规范。回滚 Skill 不会自动改写项目需求；项目应按目标版本的迁移说明处理后再修改版本号。
 
 ## 许可

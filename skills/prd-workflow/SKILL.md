@@ -25,6 +25,7 @@ allowed-tools: Bash(python3 ${CLAUDE_SKILL_DIR}/scripts/*)
 2. 项目需求库已存在时，核对 `00-context/project.md` 的 `framework_version` 与 `core/constitution.md` 的 `version`；不一致时先告知用户，并说明可按 constitution 变更记录迁移。
 3. **Skill 目录只读。** 在项目中工作时不修改 `<SKILL>` 下的任何文件；需要改进核心的，按提炼阶段形成上游提案（CN-72）。
 4. 写入文件的内容使用专业、正式的书面口吻（CN-38）；不编造，未知项按 CN-30 标记。
+5. 生成或审稿时读取 `references/module-selection.md`，按实际能力特征选择条件模块，判断依据保存在生成报告（CN-58）；重要未知项进入开放问题，不增加逐章审批步骤。
 
 ## 命令
 

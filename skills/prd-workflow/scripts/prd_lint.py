@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""prd_lint —— 需求库的确定性检查（适配规范版本 1.4）。
+"""prd_lint —— 需求库的确定性检查（适配规范版本 1.5）。
 
 凡是能由脚本判定的纪律，由本脚本判定，不依赖模型自觉（constitution CN-55）。
 在项目需求库目录（含 00-context/project.md）中运行；脚本位于 prd-workflow Skill 的 scripts/ 下。
@@ -35,7 +35,7 @@ from prdlib import (
     headings, mask_lines, parse_tables, project_config, rel, spec_version, split_frontmatter,
 )
 
-LINT_SPEC_VERSION = "1.4"
+LINT_SPEC_VERSION = "1.5"
 STATUS_RANK = {"draft": 0, "review": 1, "frozen": 2}
 STATUSES = ["draft", "review", "frozen", "deprecated"]
 CORE_VERIFY_LEVELS = {"界面", "接口", "数据", "评测"}   # 项目可在 project.md 中新增（CN-8）
@@ -195,6 +195,8 @@ class Linter:
         self._check_empty_chapters(r, body, body_start, hs, rank)
         self._check_guidance(r, body_raw, body_start, rank)
         defs, deleted = self._collect_definitions(r, body, body_start, tables, hs, fm.get("id", ""))
+        if tuple(int(n) for n in re.findall(r"\d+", str(fm.get("template_version", "")))) >= (1, 5):
+            self._check_module_selection(r, fm.get("id", ""), defs, deleted, has_effect, rank)
         self._check_references(r, body, body_start, defs, fm.get("id", ""), all_reqs, rank)
         self._check_todos(r, body, body_start, tables, rank, stat)
         self._check_sources(r, body, body_start, tables, hs, defs, fm.get("id", ""), rank, stat)
@@ -206,6 +208,61 @@ class Linter:
         if has_effect:
             self._check_effect(r, tables, rank)
         self._check_writing(r, body, body_raw, body_start, tables)
+
+    def _check_module_selection(self, r, rid, defs, deleted, has_effect, rank):
+        """检查已声明的选章记录；是否应启用某模块由独立审稿判断。"""
+        catalog = SKILL_ROOT / "references" / "module-selection.md"
+        expected = {clean_cell(c[0]) for t in parse_tables(catalog.read_text(encoding="utf-8").splitlines())
+                    if t.col("触发特征") is not None for _, c in t.rows if c}
+        report = ROOT / "inputs" / rid / "generation-report.md"
+        columns = ("模块 ID", "判定", "依据或原因", "正文条目", "验收条目", "待确认问题")
+        tables = parse_tables(mask_lines(report.read_text(encoding="utf-8").splitlines())) if report.exists() else []
+        selections = [t for t in tables if t.col("模块 ID") is not None]
+        if len(selections) != 1 or any(selections[0].col(c) is None for c in columns):
+            self.add(self.gate(rank), "MS01", r, 1, "生成报告须包含一张完整的模块适用性表（CN-58）")
+            return
+        table = selections[0]
+        live = set(defs) - set(deleted)
+        seen = set()
+
+        def ids(value):
+            return {f"{a}-{b}" for a, b in OBJ_PATTERN.findall(value)} | set(ITEM_PATTERN.findall(value))
+
+        def filled(value):
+            return value not in ("", "—", "-", "待定", "待确认") and "待补充" not in value
+
+        for ln, cells in table.rows:
+            row = {c: clean_cell(cells[table.col(c)]) if table.col(c) < len(cells) else "" for c in columns}
+            key, state = row["模块 ID"], row["判定"]
+            where = f"生成报告 L{ln} {key}"
+            if key not in expected or key in seen:
+                self.add(self.gate(rank), "MS01", r, 1, f"{where} 模块 ID 未登记或重复")
+            seen.add(key)
+            if state not in ("适用", "不适用", "待确认") or not filled(row["依据或原因"]):
+                self.add(self.gate(rank), "MS01", r, 1, f"{where} 判定非法或缺少依据/原因")
+            body_ids, ac_ids, questions = (ids(row[c]) for c in ("正文条目", "验收条目", "待确认问题"))
+            refs = body_ids | ac_ids | questions
+            if refs - live:
+                self.add(self.gate(rank), "MS02", r, 1, f"{where} 引用未定义或已删除的条目：{'、'.join(sorted(refs - live))}")
+            if any(not q.startswith("Q-") for q in questions):
+                self.add(self.gate(rank), "MS02", r, 1, f"{where} 待确认问题列只允许 Q-n")
+            valid_q = bool(questions) and questions <= live and all(q.startswith("Q-") for q in questions)
+            if state == "待确认" and not valid_q:
+                self.add(self.gate(rank), "MS02", r, 1, f"{where} 待确认模块须关联有效 Q-n")
+            if state == "适用":
+                body_ok = any(k in live and (k.startswith(rid + ".") or re.fullmatch(r"(?:S|BR|DR|EX)-\d+", k)) for k in body_ids)
+                ac_ok = any(k in live and re.fullmatch(r"(?:AC|M)-\d+", k) for k in ac_ids)
+                if not (body_ok and ac_ok) and not valid_q:
+                    self.add(self.gate(rank), "MS02", r, 1, f"{where} 须有正文与验收条目，缺口须关联 Q-n")
+            if state == "不适用" and any(row[c] not in ("", "—", "-") for c in columns[3:]):
+                self.add(self.gate(rank), "MS02", r, 1, f"{where} 不适用与正文/验收/问题声明冲突")
+            if key == "EFFECT" and ((state == "适用" and not has_effect) or (state == "不适用" and has_effect)):
+                self.add(self.gate(rank), "MS03", r, 1, "EFFECT 判定与效果验收章节不一致（CN-58）")
+            if rank >= 2 and (state == "待确认" or questions):
+                self.add("error", "MS04", r, 1, f"{where} 定稿前须解决模块问题并回写选章表")
+        missing = expected - seen
+        if missing:
+            self.add(self.gate(rank), "MS01", r, 1, f"模块适用性表缺少：{'、'.join(sorted(missing))}")
 
     # frontmatter
     def _check_frontmatter(self, r, fm, path, rank):

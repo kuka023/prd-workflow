@@ -1,7 +1,7 @@
 # 审稿结果。由审稿阶段写入 inputs/<需求ID>/review-findings.yaml。
 
 id: XXXX-000
-spec_version: "1.4"
+spec_version: "1.5"
 reviewed_at: ""
 mode: default                   # default | no-edit | score-only
 reviewed_file_commit: ""        # 被审版本的提交 SHA；未提交时填文件的 sha256
